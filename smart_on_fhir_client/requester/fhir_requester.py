@@ -215,6 +215,10 @@ class FhirContextManager:
         self.OWN_FHIR_URL = own_fhir_url or self.OWN_FHIR_URL
         self.cls_by_partner_id = defaultdict(dict)
 
+    def set_own_fhir_url(self, url: str):
+        self.OWN_FHIR_URL = url
+        return self
+
     def create_async_fhir_resource(
         self,
         client: SmartOnFhirClient,
