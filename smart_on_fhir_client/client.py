@@ -125,7 +125,7 @@ class SmartOnFhirClientBuilder:
         self._session = session
         self._cls_by_resource = {}
 
-    def for_client(self, client: Partner):
+    def for_partner(self, client: Partner):
         self._partner = client
         return self
 
