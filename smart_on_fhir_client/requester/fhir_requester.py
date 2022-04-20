@@ -27,10 +27,18 @@ class SearchSet:
         self._client = client
 
     def _process_result(self, result, return_as: Type):
-        if result is None:
+        if result is None or not result:
             return result
+        result_is_list = isinstance(result, list)
         if return_as is not None:
+            if result_is_list:
+                return [return_as(**res) for res in result]
             return return_as(**result)
+        if result_is_list:
+            return [
+                self._fhir_manager.create_async_fhir_resource(self._client, res)
+                for res in result
+            ]
         return self._fhir_manager.create_async_fhir_resource(self._client, result)
 
     def limit(self, value):
