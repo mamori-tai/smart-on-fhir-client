@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "smart-on-fhir-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "Smart on fhir python client"
 authors = ["Marc <marc@synapse-medicine.com>"]
 readme = 'README.md'  # Markdown files are supported
