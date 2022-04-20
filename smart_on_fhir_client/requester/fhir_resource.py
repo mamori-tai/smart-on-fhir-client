@@ -14,20 +14,16 @@ class CustomFHIRResource(SerializeMixin, AsyncFHIRResource):
 
     @property
     def requester(self):
-        return getattr(
-            self.fhir_client_manager, f"TARGET_{self.partition_id}"
-        )
+        return getattr(self.fhir_client_manager, f"TARGET_{self.partition_id}")
 
     async def find_by_identifier(self, identifier_url: str, client_proxy):
-        identifier_value = self.get_by_path([
-            'identifier',
-            {'system': identifier_url},
-            'value'
-        ])
+        identifier_value = self.get_by_path(
+            ["identifier", {"system": identifier_url}, "value"]
+        )
         resource = await client_proxy.search(identifier=identifier_value).first()
         return resource.id if resource is not None else None
 
-    async def pipe_to_target_fhir_server(self, identifier_url:str = None):
+    async def pipe_to_target_fhir_server(self, identifier_url: str = None):
         client_proxy = getattr(self.requester, self.resource_type)
         resource_id = await self.find_by_identifier(identifier_url, client_proxy)
         to_delete = {"fhir_client_manager"}

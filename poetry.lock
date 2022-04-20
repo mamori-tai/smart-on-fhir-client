@@ -1,6 +1,6 @@
 [[package]]
 name = "aflowey"
-version = "0.0.25"
+version = "0.1.0"
 description = "Async flow made easy and fun"
 category = "main"
 optional = false
@@ -406,14 +406,14 @@ use_chardet_on_py3 = ["chardet (>=3.0.2,<5)"]
 
 [[package]]
 name = "seito"
-version = "0.0.4"
+version = "0.1.0"
 description = "Functional helpers"
 category = "main"
 optional = false
 python-versions = ">=3.10,<4.0"
 
 [package.dependencies]
-aflowey = ">=0.0.25,<0.0.26"
+aflowey = ">=0.1.0,<0.2.0"
 aiohttp = ">=3.8.1,<4.0.0"
 "fnmamoritai.py" = ">=0.5.2,<0.6.0"
 pampy = ">=0.3.0,<0.4.0"
@@ -508,12 +508,12 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "b1e3f1b6b6a0ed073cee4395267c8065e4734e7f53f14d266cd2c181cea2ef31"
+content-hash = "50f0a7cf71ee406ee746a750535e6343760872367b0fe2dc7fd3b056316a3c11"
 
 [metadata.files]
 aflowey = [
-    {file = "aflowey-0.0.25-py3-none-any.whl", hash = "sha256:9a626f3fed2476ec60cfed293f35cd2539bbc5db8e2f3aa92df6d70ac761db2d"},
-    {file = "aflowey-0.0.25.tar.gz", hash = "sha256:7315fadc4025e92f2c82eaea36641c13a9732e9348c9086efb768d88d94f136b"},
+    {file = "aflowey-0.1.0-py3-none-any.whl", hash = "sha256:33b0571f24141083c202205ac00389d66d36da67a4daf1582e60d2543f9525e8"},
+    {file = "aflowey-0.1.0.tar.gz", hash = "sha256:491af106b27cfdf188c79ddacdd65dafd25bcc330eb06a388df627162da3720e"},
 ]
 aiocache = [
     {file = "aiocache-0.11.1-py2.py3-none-any.whl", hash = "sha256:e55c7caaa5753794fd301c3a2e592737fa1d036db9f8d04ae154facdfb48a157"},
@@ -951,8 +951,8 @@ requests = [
     {file = "requests-2.27.1.tar.gz", hash = "sha256:68d7c56fd5a8999887728ef304a6d12edc7be74f1cfa47714fc8b414525c9a61"},
 ]
 seito = [
-    {file = "seito-0.0.4-py3-none-any.whl", hash = "sha256:5ee27c23982f1cc79a691eea12978572e834141d223c53bc92dc1fe35485f37d"},
-    {file = "seito-0.0.4.tar.gz", hash = "sha256:e75c0fd2e61977f8a3807492d856973edf353b4500e729739488760ea2b2774a"},
+    {file = "seito-0.1.0-py3-none-any.whl", hash = "sha256:43c7c5b8e8acc5e398780586eadbd1bd9ae039504ed4256f31ba2554c2cc1b6f"},
+    {file = "seito-0.1.0.tar.gz", hash = "sha256:85e900d1cd9d77eafeb056b11a988eadc5e90bc7f4c713f4d121ce305c98c259"},
 ]
 tenacity = [
     {file = "tenacity-8.0.1-py3-none-any.whl", hash = "sha256:f78f4ea81b0fabc06728c11dc2a8c01277bfc5181b321a4770471902e3eb844a"},

@@ -102,7 +102,9 @@ class ClientProxy:
             else resource
         )
         await try_(resource_to_save.save)().or_raise(ValueError("Error"))
-        return self._fhir_manager.create_async_fhir_resource(self.client, resource_to_save)
+        return self._fhir_manager.create_async_fhir_resource(
+            self.client, resource_to_save
+        )
 
     async def update(
         self,
@@ -207,7 +209,6 @@ class FhirContextRequester:
         return self._get_result_as_or_raw(fhirpy_resource_dict, return_as=return_as)
 
 
-
 class FhirContextManager:
     """
 
@@ -247,9 +248,7 @@ class FhirContextManager:
                     **resource.dict(by_alias=kwargs.get("by_alias", False)),
                 )
             case AsyncResource():
-                return cls(
-                    self, client, resource.resourceType, **resource
-                )
+                return cls(self, client, resource.resourceType, **resource)
             case CustomFHIRResource():
                 return resource
             case _:
@@ -262,7 +261,12 @@ class FhirContextManager:
         self.__setattr__(
             f"TARGET_{partner_name}",
             FhirContextRequester(
-                SmartOnFhirClient(url=f"{self.OWN_FHIR_URL}/{partner_name}", authorization="", partner=partner, fhir_manager=self)
+                SmartOnFhirClient(
+                    url=f"{self.OWN_FHIR_URL}/{partner_name}",
+                    authorization="",
+                    partner=partner,
+                    fhir_manager=self,
+                )
             ),
         )
 

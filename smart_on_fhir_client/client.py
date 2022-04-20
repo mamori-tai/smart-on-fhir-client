@@ -54,11 +54,13 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
         refresh_token=None,
         partner=None,
         fhir_manager=None,
+        strategy=None,
     ):
         super(AsyncFHIRClient, self).__init__(url, authorization, extra_headers)
         self.refresh_token = refresh_token
         self.partner = partner
         self.fhir_manager = fhir_manager
+        self.strategy = strategy
 
     @property
     def partner_name(self):
@@ -66,6 +68,11 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
 
     @retry(stop=stop_after_attempt(3), retry=retry_if_exception_type(UnauthorizedError))
     async def _retry(self, method, path, data=None, params=None):
+        # if we do not have an authorization token
+        # try fetch one
+        if not self.authorization:
+            await self.fetch_access_token()
+
         headers = self._build_request_headers()
         url = self._build_request_url(path, params)
         async with aiohttp.request(method, url, json=data, headers=headers) as r:
@@ -94,6 +101,19 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
 
     async def _do_request(self, method, path, data=None, params=None):
         return await self._retry(method, path, data=data, params=params)
+
+    async def fetch_access_token(self):
+        logger.debug(f"Trying to fetch access token for {self.partner_name=}")
+        session = smart_client_factory.session
+        try:
+            access_token = await self.partner.get_access_token_for_strategy(
+                self.strategy, session
+            )
+        except:
+            logger.warning(f"Unable to fetch access token for {self.partner_name=}")
+            raise UnauthorizedError("Can not get access token")
+        else:
+            self.authorization = f"Bearer {access_token}"
 
     def reference(self, resource_type=None, id=None, reference=None, **kwargs):
         if resource_type and id:
@@ -140,20 +160,29 @@ class SmartOnFhirClientBuilder:
         return self
 
     async def build(self, fhir_manager) -> SmartOnFhirClient:
+        def build_client(access_token):
+            if access_token:
+                logger.info(f"Successfully initialized {self._partner.name=} client !")
+            else:
+                logger.warning(
+                    f"Unable to initialize {self._partner.name=} client...A retry will be performed at first call"
+                )
+            return SmartOnFhirClient(
+                self._partner.fhir_url,
+                authorization=f"Bearer {access_token}" if access_token else "",
+                partner=self._partner,
+                fhir_manager=fhir_manager,
+                strategy=self._strategy,
+            )
+
         return await (
             aopt(
                 self._partner.get_access_token_for_strategy,
                 self._strategy,
                 session=self._session,
             )
-            .map(
-                lambda access_token: SmartOnFhirClient(
-                    self._partner.fhir_url,
-                    authorization=f"Bearer {access_token}",
-                    partner=self._partner,
-                    fhir_manager=fhir_manager,
-                )
-            ).or_raise(InvalidAccessToken())
+            .map(build_client)
+            .or_else(lambda: build_client(""))
         )
 
 
@@ -166,6 +195,10 @@ class SmartOnFhirBuilderFactory:
 
     def builder(self) -> SmartOnFhirClientBuilder:
         return SmartOnFhirClientBuilder(self._session)
+
+    @property
+    def session(self):
+        return self._session
 
     async def close(self):
         await self._session.close()
@@ -180,4 +213,3 @@ class SmartOnFhirBuilderFactory:
 
 
 smart_client_factory = SmartOnFhirBuilderFactory()
-

@@ -28,4 +28,3 @@ class Strategy(enum.Enum):
     i.e. the access token in order to make fhir request"""
 
     M2M = enum.auto()
-

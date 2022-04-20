@@ -20,8 +20,9 @@ class CustomFHIRReference(SerializeMixin, AsyncFHIRReference):
         resource = (
             await self.client.resources(self.resource_type).search(_id=self.id).get()
         )
-        return self.fhir_client_manager.create_async_fhir_resource(self.client, resource)
-
+        return self.fhir_client_manager.create_async_fhir_resource(
+            self.client, resource
+        )
 
     def __str__(self):  # pragma: no cover
         return f"<CustomFHIRReference {self.reference}>"
