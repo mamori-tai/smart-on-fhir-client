@@ -27,5 +27,5 @@ class Strategy(enum.Enum):
     """Different kind of strategy to get the graal
     i.e. the access token in order to make fhir request"""
 
-    M2M = enum.auto(1)
+    M2M = enum.auto()
 
