@@ -1,13 +1,6 @@
 import enum
 
 
-def raise_error(error: Exception):
-    def inner():
-        raise error
-
-    return inner
-
-
 class StrategyNotFound(Exception):
     """Strategy not found for the client i.e. the client does not
     support the wanted strategy

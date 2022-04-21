@@ -3,6 +3,7 @@ import warnings
 from collections import defaultdict
 from typing import Type, Union, NoReturn, Any, TypeVar
 
+from aflowey.single_executor import _exec
 from fhir.resources.identifier import Identifier
 from fhir.resources.reference import Reference
 from fhir.resources.resource import Resource
@@ -11,7 +12,7 @@ from fhirpy.lib import AsyncFHIRResource
 from seito.monad.try_ import try_
 
 from smart_on_fhir_client.client import SmartOnFhirClientBuilder, SmartOnFhirClient
-from smart_on_fhir_client.partner import Partner
+from smart_on_fhir_client.partner import Partner, TargetUrlStrategy
 from smart_on_fhir_client.requester.fhir_resource import CustomFHIRResource
 
 
@@ -192,6 +193,7 @@ class FhirContextRequester:
             and reference.type is not None
         ):
             # handle identifier
+            # noinspection PyTypeChecker
             identifier_as_fhir: Identifier = reference.identifier
             result = (
                 await self._client.resources(reference.type)
@@ -235,11 +237,11 @@ class FhirContextManager:
         **kwargs: Any,
     ) -> CustomFHIRResource | NoReturn:
 
-        partner_name = client.partner_name
+        client_name = client.client_name
         resource_type = resource.resource_type
-        wanted_cls = self.cls_by_partner_id[partner_name].get(resource_type)
+        wanted_cls = self.cls_by_partner_id[client_name].get(resource_type)
         cls = wanted_cls or CustomFHIRResource
-        match (resource):
+        match resource:
             case Resource():
                 return cls(
                     self,
@@ -254,31 +256,87 @@ class FhirContextManager:
             case _:
                 raise ValueError("Could not create async fhir resource")
 
-    def register_partner(self, partner: Partner, client: SmartOnFhirClient) -> None:
+    @staticmethod
+    def _get_tenant_id(
+        target_url_strategy: TargetUrlStrategy,
+        partner_name: str,
+        client_name: str,
+    ) -> str:
+        match target_url_strategy:
+            case TargetUrlStrategy.NONE:
+                return ""
+            case TargetUrlStrategy.PARTNER:
+                return partner_name
+            case TargetUrlStrategy.ORGANIZATION_NAME:
+                return client_name
+        raise ValueError("Invalid target url strategy")
+
+    def register_partner(
+        self,
+        client_name: str,
+        partner: Partner,
+        client: SmartOnFhirClient,
+        target_url_strategy: TargetUrlStrategy = TargetUrlStrategy.PARTNER,
+        target_server_authorization: str = None,
+    ) -> None:
         """Add a partner requester with the partition of the partner"""
         partner_name = partner.name
-        self.__setattr__(partner_name, FhirContextRequester(client))
+        self.__setattr__(client_name, FhirContextRequester(client))
+
+        tenant_id = self._get_tenant_id(target_url_strategy, partner_name, client_name)
+        target_url = (
+            self.OWN_FHIR_URL if not tenant_id else f"{self.OWN_FHIR_URL}/{tenant_id}"
+        )
         self.__setattr__(
-            f"TARGET_{partner_name}",
+            f"TARGET_{client_name}",
             FhirContextRequester(
                 SmartOnFhirClient(
-                    url=f"{self.OWN_FHIR_URL}/{partner_name}",
-                    authorization="",
+                    url=target_url,
+                    authorization=f"Bearer {target_server_authorization}",
                     partner=partner,
                     fhir_manager=self,
                 )
             ),
         )
 
-    async def register_partner_async(self, builder: SmartOnFhirClientBuilder):
-        client = await builder.build(self)
+    async def register_partner_async(
+        self,
+        builder: SmartOnFhirClientBuilder,
+    ):
+        fhir_client = await builder.build(self)
+
+        # unpacking partner information
         partner = builder._partner
         partner_name = partner.name
+
+        organization = builder._organization
+        # unpacking organization information
+        organization_name = organization.slug if organization else ""
+
+        # the final client name is the organization if it exists else the partner name
+        client_name = organization_name or partner_name
+
         # register for each resource, its own callback
         for resource_type, cb in builder._cls_by_resource.items():
-            self.cls_by_partner_id[partner_name][resource_type] = cb
+            self.cls_by_partner_id[client_name][resource_type] = cb
 
-        self.register_partner(partner, client)
+        target_server_authorization = builder._target_fhir_server_authorization or ""
+
+        if callable(target_server_authorization):
+            target_server_authorization = await _exec(target_server_authorization) or ""
+
+        target_url_strategy = (
+            organization.target_url_strategy
+            if organization
+            else TargetUrlStrategy.PARTNER
+        )
+        self.register_partner(
+            client_name,
+            partner,
+            fhir_client,
+            target_url_strategy,
+            target_server_authorization,
+        )
 
     def get_partner(self, partner_name) -> FhirContextRequester | None:
         partner_requester = getattr(self, partner_name)

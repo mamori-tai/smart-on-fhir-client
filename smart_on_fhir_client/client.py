@@ -1,7 +1,7 @@
 import json
 import pickle
 from json import JSONDecodeError
-from typing import Type
+from typing import Type, Callable, NoReturn
 
 import aiohttp
 from aiohttp import ClientSession
@@ -14,7 +14,7 @@ from loguru import logger
 from seito.monad.async_opt import aopt
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
 
-from smart_on_fhir_client.partner import Partner
+from smart_on_fhir_client.partner import Partner, Organization
 from smart_on_fhir_client.requester.fhir_reference import CustomFHIRReference
 from smart_on_fhir_client.requester.fhir_resource import CustomFHIRResource
 from smart_on_fhir_client.strategy import Strategy
@@ -55,12 +55,22 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
         partner=None,
         fhir_manager=None,
         strategy=None,
+        organization=None,
     ):
         super(AsyncFHIRClient, self).__init__(url, authorization, extra_headers)
         self.refresh_token = refresh_token
         self.partner = partner
         self.fhir_manager = fhir_manager
         self.strategy = strategy
+        self.organization = organization
+
+    @property
+    def client_name(self):
+        return (
+            self.organization.slug
+            if self.organization is not None
+            else self.partner_name
+        )
 
     @property
     def partner_name(self):
@@ -103,14 +113,20 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
         return await self._retry(method, path, data=data, params=params)
 
     async def fetch_access_token(self):
-        logger.debug(f"Trying to fetch access token for {self.partner_name=}")
+        logger.debug(f"Trying to fetch access token for {self.client_name=}")
         session = smart_client_factory.session
         try:
             access_token = await self.partner.get_access_token_for_strategy(
-                self.strategy, session
+                self.strategy,
+                session,
+                **(
+                    self.organization.parameters
+                    if self.organization is not None
+                    else {}
+                ),
             )
         except:
-            logger.warning(f"Unable to fetch access token for {self.partner_name=}")
+            logger.warning(f"Unable to fetch access token for {self.client_name=}")
             raise UnauthorizedError("Can not get access token")
         else:
             self.authorization = f"Bearer {access_token}"
@@ -140,26 +156,101 @@ class InvalidAccessToken(Exception):
 
 class SmartOnFhirClientBuilder:
     def __init__(self, session: ClientSession):
+        """
+
+        Args:
+            session:
+        """
         self._partner: Partner | None = None
         self._strategy: Strategy | None = None
+        self._organization: Organization | None = None
         self._session = session
         self._cls_by_resource = {}
+        self._target_fhir_server_authorization: str | Callable[..., str] | None = None
 
-    def for_partner(self, client: Partner):
+    def _check_partner(self) -> NoReturn:
+        """
+
+        """
+        if not self._partner:
+            raise ValueError("No partner registered")
+
+    def for_partner(self, client: Partner) -> "SmartOnFhirClientBuilder":
+        """
+
+        Args:
+            client:
+
+        Returns:
+
+        """
         self._partner = client
         return self
 
-    def for_strategy(self, strategy: Strategy):
+    def for_strategy(self, strategy: Strategy) -> "SmartOnFhirClientBuilder":
+        """
+
+        Args:
+            strategy:
+
+        Returns:
+
+        """
+        self._check_partner()
         self._strategy = strategy
         return self
 
-    def register_cls_for(self, resource: str, cls: Type[CustomFHIRResource]):
-        if not self._partner:
-            raise ValueError("No partner registered")
+    def for_organization(
+        self, organization: Organization
+    ) -> "SmartOnFhirClientBuilder":
+        """
+
+        Args:
+            organization:
+
+        Returns:
+
+        """
+        self._check_partner()
+        self._organization = organization
+        return self
+
+    def register_cls_for(
+        self, resource: str, cls: Type[CustomFHIRResource]
+    ) -> "SmartOnFhirClientBuilder":
+        """
+
+        Args:
+            resource:
+            cls:
+
+        Returns:
+
+        """
+        self._check_partner()
         self._cls_by_resource[resource] = cls
         return self
 
+    def register_target_server_authorization(
+        self, jwt_token: str | Callable[..., str]
+    ) -> "SmartOnFhirClientBuilder":
+        """
+
+        Args:
+            jwt_token:
+
+        Returns:
+
+        """
+        self._check_partner()
+        self._target_fhir_server_authorization = jwt_token
+        return self
+
     async def build(self, fhir_manager) -> SmartOnFhirClient:
+        """
+        build asynchronously a fhir client
+        """
+
         def build_client(access_token):
             if access_token:
                 logger.info(f"Successfully initialized {self._partner.name=} client !")
@@ -173,6 +264,7 @@ class SmartOnFhirClientBuilder:
                 partner=self._partner,
                 fhir_manager=fhir_manager,
                 strategy=self._strategy,
+                organization=self._organization,
             )
 
         return await (
@@ -180,6 +272,11 @@ class SmartOnFhirClientBuilder:
                 self._partner.get_access_token_for_strategy,
                 self._strategy,
                 session=self._session,
+                **(
+                    self._organization.parameters
+                    if self._organization is not None
+                    else {}
+                ),
             )
             .map(build_client)
             .or_else(lambda: build_client(""))
@@ -191,24 +288,52 @@ class SmartOnFhirBuilderFactory:
         self._session = None
 
     async def init(self):
+        """
+
+        """
         self._session = ClientSession()
 
     def builder(self) -> SmartOnFhirClientBuilder:
+        """
+
+        Returns:
+
+        """
         return SmartOnFhirClientBuilder(self._session)
 
     @property
     def session(self):
+        """
+
+        Returns:
+
+        """
         return self._session
 
     async def close(self):
+        """
+
+        """
         await self._session.close()
 
     async def __aenter__(self):
+        """
+
+        Returns:
+
+        """
         if self._session is None:
             await self.init()
         return await self._session.__aenter__()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """
+
+        Args:
+            exc_type:
+            exc_val:
+            exc_tb:
+        """
         await self._session.__aexit__(exc_type, exc_val, exc_tb)
 
 

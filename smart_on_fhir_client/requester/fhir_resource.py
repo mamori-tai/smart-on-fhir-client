@@ -1,4 +1,5 @@
 from fhirpy.lib import AsyncFHIRResource
+from loguru import logger
 
 from smart_on_fhir_client.requester.mixin import SerializeMixin
 
@@ -10,32 +11,38 @@ class CustomFHIRResource(SerializeMixin, AsyncFHIRResource):
 
     @property
     def partition_id(self):
-        return self.client.partner_name
+        return self.client.client_name
 
     @property
     def requester(self):
+        logger.debug("partition id: {}", self.partition_id)
         return getattr(self.fhir_client_manager, f"TARGET_{self.partition_id}")
 
-    async def find_by_identifier(self, identifier_url: str, client_proxy):
+    async def find_by_identifier(self, target_identifier_url: str, client_proxy):
         identifier_value = self.get_by_path(
-            ["identifier", {"system": identifier_url}, "value"]
+            ["identifier", {"system": target_identifier_url}, "value"]
         )
         resource = await client_proxy.search(identifier=identifier_value).first()
         return resource.id if resource is not None else None
 
-    async def pipe_to_target_fhir_server(self, identifier_url: str = None):
+    async def pipe_to_target_fhir_server(self, target_identifier_url: str = None):
         client_proxy = getattr(self.requester, self.resource_type)
-        resource_id = await self.find_by_identifier(identifier_url, client_proxy)
-        to_delete = {"fhir_client_manager"}
 
+        # try to find the resource on the target fhir server
+        resource_id = await self.find_by_identifier(target_identifier_url, client_proxy)
+
+        data = self.serialize()
+
+        # if not found on the target server fhir, we pop the id
+        # allowing a post instead of a put
         if resource_id is None:
-            to_delete.add("id")
+            data.pop("id", None)
+        else:
+            # resource has been found on the target server fhir
+            # so setting the id of the target resource
+            data["id"] = resource_id
 
-        data = {**self}
-
-        for attr in to_delete:
-            data.pop(attr, None)
-
+        # finally save or update based on presence / absence of id attribute
         return await client_proxy.save(
             client_proxy.client.resource(self.resource_type, **data)
         )
