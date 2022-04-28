@@ -14,7 +14,11 @@ class CustomFHIRResource(SerializeMixin, AsyncFHIRResource):
         return self.client.client_name
 
     @property
-    def requester(self):
+    def source_requester(self):
+        return getattr(self.fhir_client_manager, self.partition_id)
+
+    @property
+    def target_requester(self):
         logger.debug("partition id: {}", self.partition_id)
         return getattr(self.fhir_client_manager, f"TARGET_{self.partition_id}")
 
@@ -22,12 +26,14 @@ class CustomFHIRResource(SerializeMixin, AsyncFHIRResource):
         identifier_value = self.get_by_path(
             ["identifier", {"system": target_identifier_url}, "value"]
         )
+        if identifier_value is None:
+            return None
+
         resource = await client_proxy.search(identifier=identifier_value).first()
         return resource.id if resource is not None else None
 
     async def pipe_to_target_fhir_server(self, target_identifier_url: str = None):
-        client_proxy = getattr(self.requester, self.resource_type)
-
+        client_proxy = getattr(self.target_requester, self.resource_type)
         # try to find the resource on the target fhir server
         resource_id = await self.find_by_identifier(target_identifier_url, client_proxy)
 
