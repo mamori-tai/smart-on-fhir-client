@@ -85,6 +85,7 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
 
         headers = self._build_request_headers()
         url = self._build_request_url(path, params)
+        logger.debug("Fetching {}", url)
         async with aiohttp.request(method, url, json=data, headers=headers) as r:
             if 200 <= r.status < 300:
                 data = await r.text()

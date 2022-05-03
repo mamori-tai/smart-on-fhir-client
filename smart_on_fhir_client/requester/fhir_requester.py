@@ -152,7 +152,11 @@ class FhirContextRequester:
             "ResearchSubject",
             "Medication",
             "MedicationAdministration",
-            "Encounter" # 🔔 lifen !
+            "Encounter",  # 🔔 lifen !
+            "CareTeam",
+            "PractitionerRole",
+            "List"
+            "QuestionnaireResponse"
         }
     )
 
