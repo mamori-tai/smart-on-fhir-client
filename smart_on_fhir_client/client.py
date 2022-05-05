@@ -170,9 +170,7 @@ class SmartOnFhirClientBuilder:
         self._target_fhir_server_authorization: str | Callable[..., str] | None = None
 
     def _check_partner(self) -> NoReturn:
-        """
-
-        """
+        """ """
         if not self._partner:
             raise ValueError("No partner registered")
 
@@ -289,9 +287,7 @@ class SmartOnFhirBuilderFactory:
         self._session = None
 
     async def init(self):
-        """
-
-        """
+        """ """
         self._session = ClientSession()
 
     def builder(self) -> SmartOnFhirClientBuilder:
@@ -312,9 +308,7 @@ class SmartOnFhirBuilderFactory:
         return self._session
 
     async def close(self):
-        """
-
-        """
+        """ """
         await self._session.close()
 
     async def __aenter__(self):

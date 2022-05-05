@@ -32,7 +32,9 @@ class CustomFHIRResource(SerializeMixin, AsyncFHIRResource):
         resource = await client_proxy.search(identifier=identifier_value).first()
         return resource.id if resource is not None else None
 
-    async def pipe_to_target_fhir_server(self, target_identifier_url: str = None):
+    async def pipe_to_target_fhir_server(
+        self, target_identifier_url: str = "", **kwargs
+    ):
         client_proxy = getattr(self.target_requester, self.resource_type)
         # try to find the resource on the target fhir server
         resource_id = await self.find_by_identifier(target_identifier_url, client_proxy)

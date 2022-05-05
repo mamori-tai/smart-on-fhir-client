@@ -155,8 +155,7 @@ class FhirContextRequester:
             "Encounter",  # 🔔 lifen !
             "CareTeam",
             "PractitionerRole",
-            "List"
-            "QuestionnaireResponse"
+            "List" "QuestionnaireResponse",
         }
     )
 
