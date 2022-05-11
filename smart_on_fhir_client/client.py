@@ -96,9 +96,11 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
 
             if r.status == 403 or r.status == 401:
                 # retry with a refresh token
-                access, refresh = await self.trade_refresh_token_to_access_token()
-                self.authorization = f"Bearer {access}"
-                self.refresh_token = refresh
+                # fetch a brand-new access token ?
+                await self.fetch_access_token()
+                # self.trade_refresh_token_to_access_token()
+                # self.authorization = f"Bearer {access}"
+                # self.refresh_token = refresh
                 raise UnauthorizedError("Retrying because of unauthorized")
 
             data = await r.text()
@@ -170,9 +172,7 @@ class SmartOnFhirClientBuilder:
         self._target_fhir_server_authorization: str | Callable[..., str] | None = None
 
     def _check_partner(self) -> NoReturn:
-        """
-
-        """
+        """ """
         if not self._partner:
             raise ValueError("No partner registered")
 
@@ -254,7 +254,9 @@ class SmartOnFhirClientBuilder:
 
         def build_client(access_token):
             if access_token:
-                logger.info(f"Successfully initialized {self._partner.name=} client !")
+                logger.info(
+                    f"Successfully initialized {self._partner.name=} {self._organization.slug if self._organization else 'No organization'} client !"
+                )
             else:
                 logger.warning(
                     f"Unable to initialize {self._partner.name=} client...A retry will be performed at first call"
@@ -289,9 +291,7 @@ class SmartOnFhirBuilderFactory:
         self._session = None
 
     async def init(self):
-        """
-
-        """
+        """ """
         self._session = ClientSession()
 
     def builder(self) -> SmartOnFhirClientBuilder:
@@ -312,9 +312,7 @@ class SmartOnFhirBuilderFactory:
         return self._session
 
     async def close(self):
-        """
-
-        """
+        """ """
         await self._session.close()
 
     async def __aenter__(self):

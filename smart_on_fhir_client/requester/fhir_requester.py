@@ -160,7 +160,7 @@ class FhirContextRequester:
             "List",
             "QuestionnaireResponse",
             "Communication",
-            "CommunicationRequest"
+            "CommunicationRequest",
         }
     )
 
