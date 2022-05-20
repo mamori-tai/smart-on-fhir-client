@@ -12,7 +12,7 @@ from fhirpy.lib import AsyncFHIRResource
 from seito.monad.try_ import try_
 
 from smart_on_fhir_client.client import SmartOnFhirClientBuilder, SmartOnFhirClient
-from smart_on_fhir_client.partner import Partner, TargetUrlStrategy
+from smart_on_fhir_client.partner import Partner, TargetUrlStrategy, Organization
 from smart_on_fhir_client.requester.fhir_resource import CustomFHIRResource
 
 
@@ -270,6 +270,7 @@ class FhirContextManager:
         target_url_strategy: TargetUrlStrategy,
         partner_name: str,
         client_name: str,
+        organization: Organization,
     ) -> str:
         match target_url_strategy:
             case TargetUrlStrategy.NONE:
@@ -278,6 +279,8 @@ class FhirContextManager:
                 return partner_name
             case TargetUrlStrategy.ORGANIZATION_NAME:
                 return client_name
+            case TargetUrlStrategy.CUSTOM:
+                return organization.parameters["target_tenant"]
         raise ValueError("Invalid target url strategy")
 
     def register_partner(
@@ -285,14 +288,22 @@ class FhirContextManager:
         client_name: str,
         partner: Partner,
         client: SmartOnFhirClient,
-        target_url_strategy: TargetUrlStrategy = TargetUrlStrategy.PARTNER,
+        organization: Organization,
         target_server_authorization: str = None,
     ) -> None:
         """Add a partner requester with the partition of the partner"""
         partner_name = partner.name
         self.__setattr__(client_name, FhirContextRequester(client))
 
-        tenant_id = self._get_tenant_id(target_url_strategy, partner_name, client_name)
+        target_url_strategy = (
+            organization.target_url_strategy
+            if organization
+            else TargetUrlStrategy.PARTNER
+        )
+
+        tenant_id = self._get_tenant_id(
+            target_url_strategy, partner_name, client_name, organization
+        )
         target_url = (
             self.OWN_FHIR_URL if not tenant_id else f"{self.OWN_FHIR_URL}/{tenant_id}"
         )
@@ -334,16 +345,11 @@ class FhirContextManager:
         if callable(target_server_authorization):
             target_server_authorization = await _exec(target_server_authorization) or ""
 
-        target_url_strategy = (
-            organization.target_url_strategy
-            if organization
-            else TargetUrlStrategy.PARTNER
-        )
         self.register_partner(
             client_name,
             partner,
             fhir_client,
-            target_url_strategy,
+            organization,
             target_server_authorization,
         )
 

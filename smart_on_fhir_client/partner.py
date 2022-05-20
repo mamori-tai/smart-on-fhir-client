@@ -51,6 +51,7 @@ class TargetUrlStrategy(enum.Enum):
     NONE = enum.auto()
     PARTNER = enum.auto()
     ORGANIZATION_NAME = enum.auto()
+    CUSTOM = enum.auto()
 
 
 class Organization:
