@@ -3,6 +3,7 @@ import warnings
 from collections import defaultdict
 from typing import Type, Union, NoReturn, Any, TypeVar
 
+# noinspection PyProtectedMember
 from aflowey.single_executor import _exec
 from fhir.resources.identifier import Identifier
 from fhir.resources.reference import Reference
@@ -67,6 +68,10 @@ class SearchSet:
         result = await self._search.fetch()
         return self._process_result(result, return_as=return_as)
 
+    async def post_fetch(self, return_as=None):
+        result = await self._search.post_fetch()
+        return self._process_result(result, return_as=return_as)
+
     async def first(self, return_as=None):
         """return first instance converted to the target class"""
         result = await self._search.first()
@@ -86,7 +91,7 @@ class ClientProxy:
         # allow research stuff
         self._target = self.client.resources(_id)
 
-    def search(self, **kwargs):
+    def search(self, **kwargs) -> SearchSet:
         return SearchSet(self._target.search(**kwargs), self._fhir_manager, self.client)
 
     async def save(
@@ -218,6 +223,9 @@ class FhirContextRequester:
             reference=reference
         ).to_resource()
         return self._get_result_as_or_raw(fhirpy_resource_dict, return_as=return_as)
+
+    def Patient(self) -> ClientProxy:
+        return self.__getattribute__("Patient")
 
 
 class FhirContextManager:

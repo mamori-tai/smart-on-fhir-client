@@ -9,7 +9,7 @@ from fhirpy.base.exceptions import ResourceNotFound, OperationOutcome
 from fhirpy.base.utils import (
     AttrDict,
 )
-from fhirpy.lib import AsyncFHIRClient
+from fhirpy.lib import AsyncFHIRClient, AsyncFHIRSearchSet
 from loguru import logger
 from seito.monad.async_opt import aopt
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
@@ -36,8 +36,23 @@ class RefreshTokenHandlerMixin:
         except KeyError as e:
             logger.error(e)
             raise e
-        except:
-            raise
+        except Exception as e:
+            logger.error(e)
+            raise e
+
+
+class CustomFHIRSearchSet(AsyncFHIRSearchSet):
+    """
+    custom fhir search with post
+    """
+
+    async def post_fetch(self):
+        # noinspection PyProtectedMember
+        bundle_data = await self.client._do_request(
+            "POST", path=f"{self.resource_type}/_search", data=self.params
+        )
+        resources = self._get_bundle_resources(bundle_data)
+        return resources
 
 
 class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
@@ -45,6 +60,8 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
     Simply overrides the _do_request methods to perform exponential backoff
     and retries
     """
+
+    searchset_class = CustomFHIRSearchSet
 
     def __init__(
         self,
@@ -128,15 +145,16 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
                     else {}
                 ),
             )
-        except:
+        except Exception as e:
+            logger.error(e)
             logger.warning(f"Unable to fetch access token for {self.client_name=}")
             raise UnauthorizedError("Can not get access token")
         else:
             self.authorization = f"Bearer {access_token}"
 
-    def reference(self, resource_type=None, id=None, reference=None, **kwargs):
-        if resource_type and id:
-            reference = "{0}/{1}".format(resource_type, id)
+    def reference(self, resource_type=None, id_=None, reference=None, **kwargs):
+        if resource_type and id_:
+            reference = "{0}/{1}".format(resource_type, id_)
 
         if not reference:
             raise TypeError(
@@ -254,8 +272,9 @@ class SmartOnFhirClientBuilder:
 
         def build_client(access_token):
             if access_token:
+                organization = self._organization.slug if self._organization else 'No organization'
                 logger.info(
-                    f"Successfully initialized {self._partner.name=} {self._organization.slug if self._organization else 'No organization'} client !"
+                    f"Successfully initialized {self._partner.name=} {organization=} client ! "
                 )
             else:
                 logger.warning(
