@@ -8,6 +8,7 @@ from aiohttp import ClientSession
 from fhirpy.base.exceptions import ResourceNotFound, OperationOutcome
 from fhirpy.base.utils import (
     AttrDict,
+    unique_everseen,
 )
 from fhirpy.lib import AsyncFHIRClient, AsyncFHIRSearchSet
 from loguru import logger
@@ -46,13 +47,32 @@ class CustomFHIRSearchSet(AsyncFHIRSearchSet):
     custom fhir search with post
     """
 
-    async def post_fetch(self):
+    async def post_fetch(self, enable_modifier=False):
+        def _check_modifier(val: str):
+            if enable_modifier:
+                return val
+            # try to remove modifier
+            value_without_modifier, _ = val.split(":")
+            return value_without_modifier
+
+        params = {
+            _check_modifier(k): ",".join(
+                map(str, unique_everseen(v)) if isinstance(v, list) else [str(v)]
+            )
+            for k, v in self.params.items()
+        }
+
+        logger.debug(params)
         # noinspection PyProtectedMember
         bundle_data = await self.client._do_request(
-            "POST", path=f"{self.resource_type}/_search", data=self.params
+            "POST", path=f"{self.resource_type}/_search", data=params, form_encoded=True
         )
         resources = self._get_bundle_resources(bundle_data)
         return resources
+
+    async def post_first(self, enable_modifier: bool = False):
+        result = await self.limit(1).post_fetch(enable_modifier=enable_modifier)
+        return result[0] if result else None
 
 
 class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
@@ -94,7 +114,7 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
         return self.partner.name
 
     @retry(stop=stop_after_attempt(3), retry=retry_if_exception_type(UnauthorizedError))
-    async def _retry(self, method, path, data=None, params=None):
+    async def _retry(self, method, path, data=None, params=None, form_encoded=False):
         # if we do not have an authorization token
         # try fetch one
         if not self.authorization:
@@ -103,7 +123,10 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
         headers = self._build_request_headers()
         url = self._build_request_url(path, params)
         logger.debug("Fetching {}", url)
-        async with aiohttp.request(method, url, json=data, headers=headers) as r:
+
+        body = dict(data=data) if form_encoded else dict(json=data)
+        logger.debug(body)
+        async with aiohttp.request(method, url, headers=headers, **body) as r:
             if 200 <= r.status < 300:
                 data = await r.text()
                 return json.loads(data, object_hook=AttrDict)
@@ -129,8 +152,12 @@ class SmartOnFhirClient(RefreshTokenHandlerMixin, AsyncFHIRClient):
             except (KeyError, JSONDecodeError):
                 raise OperationOutcome(reason=data)
 
-    async def _do_request(self, method, path, data=None, params=None):
-        return await self._retry(method, path, data=data, params=params)
+    async def _do_request(
+        self, method, path, data=None, params=None, form_encoded=False
+    ):
+        return await self._retry(
+            method, path, data=data, params=params, form_encoded=form_encoded
+        )
 
     async def fetch_access_token(self):
         logger.debug(f"Trying to fetch access token for {self.client_name=}")
@@ -188,6 +215,26 @@ class SmartOnFhirClientBuilder:
         self._session = session
         self._cls_by_resource = {}
         self._target_fhir_server_authorization: str | Callable[..., str] | None = None
+
+    @property
+    def partner(self):
+        return self._partner
+
+    @property
+    def strategy(self):
+        return self._strategy
+
+    @property
+    def organization(self):
+        return self._organization
+
+    @property
+    def cls_by_resource(self):
+        return self._cls_by_resource
+
+    @property
+    def target_fhir_server_authorization(self):
+        return self._target_fhir_server_authorization
 
     def _check_partner(self) -> NoReturn:
         """ """
@@ -272,7 +319,9 @@ class SmartOnFhirClientBuilder:
 
         def build_client(access_token):
             if access_token:
-                organization = self._organization.slug if self._organization else 'No organization'
+                organization = (
+                    self._organization.slug if self._organization else "No organization"
+                )
                 logger.info(
                     f"Successfully initialized {self._partner.name=} {organization=} client ! "
                 )
