@@ -62,7 +62,6 @@ class CustomFHIRSearchSet(AsyncFHIRSearchSet):
             for k, v in self.params.items()
         }
 
-        logger.debug(params)
         # noinspection PyProtectedMember
         bundle_data = await self.client._do_request(
             "POST", path=f"{self.resource_type}/_search", data=params, form_encoded=True
