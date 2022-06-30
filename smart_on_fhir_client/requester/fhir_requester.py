@@ -3,6 +3,7 @@ import warnings
 from collections import defaultdict
 from typing import Type, Union, NoReturn, Any, TypeVar
 
+# noinspection PyProtectedMember
 from aflowey.single_executor import _exec
 from fhir.resources.identifier import Identifier
 from fhir.resources.reference import Reference
@@ -11,7 +12,11 @@ from fhirpy.base import AsyncResource
 from fhirpy.lib import AsyncFHIRResource
 from seito.monad.try_ import try_
 
-from smart_on_fhir_client.client import SmartOnFhirClientBuilder, SmartOnFhirClient
+from smart_on_fhir_client.client import (
+    SmartOnFhirClientBuilder,
+    SmartOnFhirClient,
+    CustomFHIRSearchSet,
+)
 from smart_on_fhir_client.partner import Partner, TargetUrlStrategy, Organization
 from smart_on_fhir_client.requester.fhir_resource import CustomFHIRResource
 
@@ -22,7 +27,12 @@ class SearchSet:
     to pydantic model if needed
     """
 
-    def __init__(self, search, fhir_manager, client):
+    def __init__(
+        self,
+        search: CustomFHIRSearchSet,
+        fhir_manager: lambda: FhirContextManager,
+        client: SmartOnFhirClient,
+    ):
         self._search = search
         self._fhir_manager = fhir_manager
         self._client = client
@@ -67,9 +77,17 @@ class SearchSet:
         result = await self._search.fetch()
         return self._process_result(result, return_as=return_as)
 
+    async def post_fetch(self, return_as=None, enable_modifier: bool = False):
+        result = await self._search.post_fetch(enable_modifier=enable_modifier)
+        return self._process_result(result, return_as=return_as)
+
     async def first(self, return_as=None):
         """return first instance converted to the target class"""
         result = await self._search.first()
+        return self._process_result(result, return_as=return_as)
+
+    async def post_first(self, return_as=None, enable_modifier: bool = False):
+        result = await self._search.post_first(enable_modifier=enable_modifier)
         return self._process_result(result, return_as=return_as)
 
 
@@ -86,7 +104,7 @@ class ClientProxy:
         # allow research stuff
         self._target = self.client.resources(_id)
 
-    def search(self, **kwargs):
+    def search(self, **kwargs) -> SearchSet:
         return SearchSet(self._target.search(**kwargs), self._fhir_manager, self.client)
 
     async def save(
@@ -219,6 +237,75 @@ class FhirContextRequester:
         ).to_resource()
         return self._get_result_as_or_raw(fhirpy_resource_dict, return_as=return_as)
 
+    @property
+    def patient(self) -> ClientProxy:
+        return getattr(self, "Patient")
+
+    @property
+    def organization(self) -> ClientProxy:
+        return getattr(self, "Organization")
+
+    @property
+    def practitioner(self) -> ClientProxy:
+        return getattr(self, "Practitioner")
+
+    @property
+    def condition(self) -> ClientProxy:
+        return getattr(self, "Condition")
+
+    @property
+    def research_study(self) -> ClientProxy:
+        return getattr(self, "ResearchStudy")
+
+    @property
+    def research_subject(self) -> ClientProxy:
+        return getattr(self, "ResearchSubject")
+
+    @property
+    def medication(self) -> ClientProxy:
+        return getattr(self, "Medication")
+
+    @property
+    def medication_administration(self) -> ClientProxy:
+        return getattr(self, "MedicationAdministration")
+
+    @property
+    def medication_statement(self) -> ClientProxy:
+        return getattr(self, "MedicationStatement")
+
+    @property
+    def medication_request(self) -> ClientProxy:
+        return getattr(self, "MedicationRequest")
+
+    @property
+    def encounter(self) -> ClientProxy:
+        # 🔔 lifen !
+        return getattr(self, "Encounter")
+
+    @property
+    def care_team(self) -> ClientProxy:
+        return getattr(self, "CareTeam")
+
+    @property
+    def practitioner_role(self) -> ClientProxy:
+        return getattr(self, "PractitionerRole")
+
+    @property
+    def list(self) -> ClientProxy:
+        return getattr(self, "List")
+
+    @property
+    def questionnaire_response(self) -> ClientProxy:
+        return getattr(self, "QuestionnaireResponse")
+
+    @property
+    def communication(self) -> ClientProxy:
+        return getattr(self, "Communication")
+
+    @property
+    def communication_request(self) -> ClientProxy:
+        return getattr(self, "CommunicationRequest")
+
 
 class FhirContextManager:
     """
@@ -326,10 +413,10 @@ class FhirContextManager:
         fhir_client = await builder.build(self)
 
         # unpacking partner information
-        partner = builder._partner
+        partner = builder.partner
         partner_name = partner.name
 
-        organization = builder._organization
+        organization = builder.organization
         # unpacking organization information
         organization_name = organization.slug if organization else ""
 
@@ -337,10 +424,10 @@ class FhirContextManager:
         client_name = organization_name or partner_name
 
         # register for each resource, its own callback
-        for resource_type, cb in builder._cls_by_resource.items():
+        for resource_type, cb in builder.cls_by_resource.items():
             self.cls_by_partner_id[client_name][resource_type] = cb
 
-        target_server_authorization = builder._target_fhir_server_authorization or ""
+        target_server_authorization = builder.target_fhir_server_authorization or ""
 
         if callable(target_server_authorization):
             target_server_authorization = await _exec(target_server_authorization) or ""
@@ -353,11 +440,11 @@ class FhirContextManager:
             target_server_authorization,
         )
 
-    def get_partner(self, partner_name) -> FhirContextRequester | None:
-        partner_requester = getattr(self, partner_name)
+    def req(self, client_name) -> FhirContextRequester | None:
+        partner_requester = getattr(self, client_name)
         if partner_requester is None:
             warnings.warn(
-                f"fhir manager does not have a '{partner_name}' partner registered. Did you registered it ?"
+                f"fhir manager does not have a '{client_name}' partner registered. Did you registered it ?"
             )
         return partner_requester
 
