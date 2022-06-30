@@ -52,8 +52,8 @@ class CustomFHIRSearchSet(AsyncFHIRSearchSet):
             if enable_modifier:
                 return val
             # try to remove modifier
-            value_without_modifier, _ = val.split(":")
-            return value_without_modifier
+            val_parts = val.split(":")
+            return val_parts[0]
 
         params = {
             _check_modifier(k): ",".join(
