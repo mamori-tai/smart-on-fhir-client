@@ -70,7 +70,7 @@ class CustomFHIRSearchSet(AsyncFHIRSearchSet):
         return resources
 
     async def post_first(self, enable_modifier: bool = False):
-        result = await self.limit(1).post_fetch(enable_modifier=enable_modifier)
+        result = await self.post_fetch(enable_modifier=enable_modifier)
         return result[0] if result else None
 
 
